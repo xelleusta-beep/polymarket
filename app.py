@@ -120,6 +120,7 @@ def index():
 
 
 @app.route("/health")
+@app.route("/api/v1/ping")
 def health():
     """Health endpoint - keeps Render free tier alive."""
     return jsonify({"status": "ok", "ts": utc_now()}), 200
