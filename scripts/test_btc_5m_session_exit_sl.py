@@ -252,6 +252,14 @@ def run_close(
     close_order_type: str = 'FAK',
     close_limit_price: float | None = None,
 ) -> tuple[str, list[dict[str, Any]]]:
+    # If no limit price given, fetch real CLOB bid for realistic close
+    if close_limit_price is None or close_limit_price <= 0:
+        try:
+            bid = clob_best_bid(token_id)
+            if bid is not None and bid > 0:
+                close_limit_price = bid
+        except Exception:
+            pass
     cmd = [
         sys.executable,
         'src/live/pm_live_trade_runner.py',

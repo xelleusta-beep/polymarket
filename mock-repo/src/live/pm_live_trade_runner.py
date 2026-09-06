@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Dry-run stub for pm_live_trade_runner.py
-Uses real entry price from main script, simulates realistic fill.
+Uses real prices passed from main script.
 """
 import argparse
 import json
@@ -19,18 +19,13 @@ def main():
     ap.add_argument('--execute', action='store_true')
     ap.add_argument('--close-token-id', default=None)
     ap.add_argument('--close-shares', type=float, default=0)
-    ap.add_argument('--close-limit-price', type=float, default=None)
+    ap.add_argument('--close-limit-price', type=float, default=None, help='Real CLOB bid price from main script')
     args = ap.parse_args()
 
     if args.close_token_id:
-        # Close order - use Gamma API price if available, else entry price
+        # Close order - use real CLOB bid price passed from main script
         shares = args.close_shares
-        close_px = args.close_limit_price
-        if close_px is None or close_px <= 0:
-            # Fetch real price from Gamma API
-            close_px = _fetch_close_price(args.market_slug)
-        if close_px is None or close_px <= 0:
-            close_px = 0.50  # absolute fallback
+        close_px = args.close_limit_price if args.close_limit_price and args.close_limit_price > 0 else 0.50
         close_usdc = round(shares * close_px, 6)
         result = {
             "order_post_result": {
@@ -44,13 +39,12 @@ def main():
             "close_skipped": None
         }
     else:
-        # Open order - use real entry price from main script
+        # Open order - use real CLOB ask price passed from main script
         side = args.force_side
         stake = args.max_notional_usd
 
         if args.entry_price is not None and args.entry_price > 0:
-            # Use real CLOB ask price with tiny slippage simulation
-            slippage = random.uniform(-0.005, 0.005)
+            slippage = random.uniform(-0.003, 0.003)
             entry_price = round(min(0.99, max(0.01, args.entry_price + slippage)), 4)
         else:
             entry_price = round(random.uniform(0.70, 0.95), 4)
@@ -70,40 +64,6 @@ def main():
         }
 
     print(json.dumps(result, ensure_ascii=False))
-
-
-def _fetch_close_price(slug):
-    """Fetch current side price from Gamma API for realistic close."""
-    try:
-        import requests
-        import time
-        r = requests.get(
-            'https://gamma-api.polymarket.com/events',
-            params={'slug': slug},
-            timeout=8
-        )
-        data = r.json()
-        if not data:
-            return None
-        mkts = data[0].get('markets', [])
-        if not mkts:
-            return None
-        m = mkts[0]
-        outcomes = m.get('outcomes')
-        prices = m.get('outcomePrices')
-        if not outcomes or not prices:
-            return None
-        # Parse outcomes and find average price as close estimate
-        import json as _json
-        if isinstance(outcomes, str):
-            outcomes = _json.loads(outcomes)
-        if isinstance(prices, str):
-            prices = _json.loads(prices)
-        # Return average of both sides as realistic close price
-        avg = sum(float(p) for p in prices) / len(prices)
-        return round(avg, 4)
-    except Exception:
-        return None
 
 
 if __name__ == '__main__':
