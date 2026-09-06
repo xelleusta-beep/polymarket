@@ -356,6 +356,7 @@ def main():
     ap.add_argument('--poll-sec', type=float, default=None)
     ap.add_argument('--close-retry-max', type=int, default=18, help='Max close retries when position is not yet visible / not immediately closable')
     ap.add_argument('--close-retry-delay-sec', type=float, default=2.0, help='Delay between close retries')
+    ap.add_argument('--once', action='store_true', help='Exit after first trade (one trade per run)')
     ap.add_argument('--execute', action='store_true')
     args = apply_profile(ap.parse_args())
 

@@ -44,13 +44,20 @@ def run_bot():
     runner = str(Path(__file__).parent / "scripts" / "test_btc_5m_session_exit_sl.py")
     profile = bot_state["profile"]
     poll_sec = os.environ.get("BTC5M_POLL_SEC", "3")
-    entry_timeout = os.environ.get("BTC5M_ENTRY_TIMEOUT_MIN", "10")
+    entry_timeout = os.environ.get("BTC5M_ENTRY_TIMEOUT_MIN", "4")
 
     bot_state["status"] = "running"
     bot_state["started_at"] = utc_now()
 
     while True:
         try:
+            # Wait until next 5-minute window starts
+            now = time.time()
+            next_bucket = now - (now % 300) + 300
+            wait = max(0, next_bucket - now + 2)  # +2sn safety margin
+            if wait > 0:
+                time.sleep(wait)
+
             cmd = [
                 sys.executable,
                 runner,
@@ -58,6 +65,7 @@ def run_bot():
                 "--profile", profile,
                 "--entry-timeout-min", entry_timeout,
                 "--poll-sec", poll_sec,
+                "--once",
             ]
 
             bot_process = subprocess.Popen(
