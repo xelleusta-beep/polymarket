@@ -76,11 +76,18 @@ def run_bot():
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
-                env={**os.environ, "BTC5M_REPO": repo, "BTC5M_STATE_FILE": STATE_FILE},
+                env={**os.environ, "BTC5M_REPO": repo, "BTC5M_STATE_FILE": STATE_FILE, "BTC5M_STATE_DIR": STATE_DIR},
             )
             bot_state["pid"] = bot_process.pid
 
-            stdout, stderr = bot_process.communicate()
+            try:
+                stdout, stderr = bot_process.communicate(timeout=420)
+            except subprocess.TimeoutExpired:
+                bot_process.kill()
+                stdout, stderr = bot_process.communicate()
+                bot_state["errors"].append({"at": utc_now(), "msg": "subprocess timeout - killed after 7min"})
+                time.sleep(5)
+                continue
 
             if stdout:
                 try:
@@ -500,7 +507,21 @@ def trades_legacy():
 
 
 if __name__ == "__main__":
+    def watchdog():
+        while True:
+            time.sleep(30)
+            if not bot_thread.is_alive():
+                bot_state["errors"].append({"at": utc_now(), "msg": "bot thread died, restarting..."})
+                bot_state["status"] = "restarting"
+                new_thread = threading.Thread(target=run_bot, daemon=True)
+                new_thread.start()
+                # update global reference
+                import __main__
+                __main__.bot_thread = new_thread
+
     bot_thread = threading.Thread(target=run_bot, daemon=True)
     bot_thread.start()
+    wd = threading.Thread(target=watchdog, daemon=True)
+    wd.start()
     port = int(os.environ.get("PORT", 8000))
     app.run(host="0.0.0.0", port=port, debug=False)
