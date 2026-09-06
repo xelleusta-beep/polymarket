@@ -44,8 +44,7 @@ def main():
         stake = args.max_notional_usd
 
         if args.entry_price is not None and args.entry_price > 0:
-            slippage = random.uniform(-0.003, 0.003)
-            entry_price = round(min(0.99, max(0.01, args.entry_price + slippage)), 4)
+            entry_price = round(args.entry_price, 4)
         else:
             entry_price = round(random.uniform(0.70, 0.95), 4)
 

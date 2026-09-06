@@ -455,11 +455,13 @@ def main():
                 'min_spread': min_spread,
             })
 
+            # Dry-run: use Gamma prices for both entry and close (consistent)
+            # Live: use CLOB ask for entry
             candidates: list[tuple[str, float]] = []
-            if up_ask is not None and float(up_ask) >= args.threshold:
-                candidates.append(('UP', float(up_ask)))
-            if dn_ask is not None and float(dn_ask) >= args.threshold:
-                candidates.append(('DOWN', float(dn_ask)))
+            if g_up is not None and float(g_up) >= args.threshold:
+                candidates.append(('UP', float(g_up)))
+            if g_dn is not None and float(g_dn) >= args.threshold:
+                candidates.append(('DOWN', float(g_dn)))
 
             if not candidates:
                 report['attempts'].append({
