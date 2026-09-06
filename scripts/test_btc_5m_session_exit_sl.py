@@ -17,6 +17,7 @@ from py_clob_client.clob_types import ApiCreds
 
 UTC = dt.timezone.utc
 STATE_FILE = os.environ.get('BTC5M_STATE_FILE', '')
+STATE_DIR = os.environ.get('BTC5M_STATE_DIR', os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'runtime'))
 
 
 def write_state(state: dict):
@@ -252,6 +253,7 @@ def run_open(repo: str, slug: str, side: str, stake: float, execute: bool, entry
     env.setdefault('PM_MAX_SPREAD', '1')
     env.setdefault('PM_MIN_TOP_ASK_NOTIONAL_USD', '0')
     env.setdefault('PM_ORDER_TYPE', 'FAK')
+    env['BTC5M_STATE_DIR'] = STATE_DIR
     p = subprocess.run(cmd, cwd=repo, capture_output=True, text=True, env=env)
     out = (p.stdout or '') + '\n' + (p.stderr or '')
     return out, parse_json_objects(out)
@@ -295,6 +297,7 @@ def run_close(
         cmd.append('--execute')
     env = os.environ.copy()
     env['PM_CLOSE_ORDER_TYPE'] = str(close_order_type or 'FAK').upper()
+    env['BTC5M_STATE_DIR'] = STATE_DIR
     p = subprocess.run(cmd, cwd=repo, capture_output=True, text=True, env=env)
     out = (p.stdout or '') + '\n' + (p.stderr or '')
     return out, parse_json_objects(out)
