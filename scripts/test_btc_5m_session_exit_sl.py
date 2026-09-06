@@ -220,7 +220,7 @@ def cancel_token_orders(client: Optional[ClobClient], token_id: str) -> Optional
         return {'error': str(e)}
 
 
-def run_open(repo: str, slug: str, side: str, stake: float, execute: bool) -> tuple[str, list[dict[str, Any]]]:
+def run_open(repo: str, slug: str, side: str, stake: float, execute: bool, entry_price: float | None = None) -> tuple[str, list[dict[str, Any]]]:
     cmd = [
         sys.executable,
         'src/live/pm_live_trade_runner.py',
@@ -230,6 +230,8 @@ def run_open(repo: str, slug: str, side: str, stake: float, execute: bool) -> tu
         '--risk-frac', str(stake / 100.0),
         '--max-notional-usd', str(stake),
     ]
+    if entry_price is not None:
+        cmd += ['--entry-price', f'{entry_price:.6f}']
     if execute:
         cmd.append('--execute')
     env = os.environ.copy()
@@ -443,7 +445,7 @@ def main():
 
             side, trigger_price = sorted(candidates, key=lambda x: x[1], reverse=True)[0]
 
-            out, objs = run_open(args.repo, slug, side, args.stake_usd, args.execute)
+            out, objs = run_open(args.repo, slug, side, args.stake_usd, args.execute, entry_price=trigger_price)
             post = None
             runner = None
             for o in objs:
