@@ -4,6 +4,7 @@ import datetime as dt
 import json
 import os
 import subprocess
+import sys
 import time
 from typing import Any, Optional
 from pathlib import Path
@@ -221,7 +222,7 @@ def cancel_token_orders(client: Optional[ClobClient], token_id: str) -> Optional
 
 def run_open(repo: str, slug: str, side: str, stake: float, execute: bool) -> tuple[str, list[dict[str, Any]]]:
     cmd = [
-        '.venv/bin/python',
+        sys.executable,
         'src/live/pm_live_trade_runner.py',
         '--market-slug', slug,
         '--force-side', side,
@@ -250,7 +251,7 @@ def run_close(
     close_limit_price: float | None = None,
 ) -> tuple[str, list[dict[str, Any]]]:
     cmd = [
-        '.venv/bin/python',
+        sys.executable,
         'src/live/pm_live_trade_runner.py',
         '--market-slug', slug,
         '--close-token-id', token_id,

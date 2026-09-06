@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: btc-5m-dry-run
+    runtime: python
+    plan: free
+    env: docker
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: BTC5M_REPO
+        value: /app/mock-repo
+      - key: BTC5M_ENV_FILE
+        value: /app/mock-repo/.env
+      - key: PYTHONUNBUFFERED
+        value: "1"
