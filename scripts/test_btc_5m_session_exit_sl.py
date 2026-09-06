@@ -251,9 +251,9 @@ def run_close(
     execute: bool,
     close_order_type: str = 'FAK',
     close_limit_price: float | None = None,
-    entry_price: float | None = None,
+    side: str | None = None,
 ) -> tuple[str, list[dict[str, Any]]]:
-    # If no limit price given, try CLOB bid, fallback to entry price for dry-run
+    # If no limit price given, try CLOB bid, then Gamma API side price
     if close_limit_price is None or close_limit_price <= 0:
         try:
             bid = clob_best_bid(token_id)
@@ -261,8 +261,13 @@ def run_close(
                 close_limit_price = bid
         except Exception:
             pass
-    if (close_limit_price is None or close_limit_price <= 0) and entry_price is not None:
-        close_limit_price = entry_price
+    if (close_limit_price is None or close_limit_price <= 0) and side is not None:
+        try:
+            gamma_px = get_side_price_from_slug(slug, side)
+            if gamma_px is not None and gamma_px > 0:
+                close_limit_price = gamma_px
+        except Exception:
+            pass
     cmd = [
         sys.executable,
         'src/live/pm_live_trade_runner.py',
@@ -537,7 +542,7 @@ def main():
             opened['shares'],
             args.execute,
             close_order_type='FAK',
-            entry_price=opened.get('entry_price'),
+            side=opened.get('side'),
         )
         close_obj = objs[-1] if objs else {}
         post = close_obj.get('order_post_result') or {}
