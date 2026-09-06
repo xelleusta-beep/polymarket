@@ -341,7 +341,6 @@ function renderDashboard(data) {
 
   // Stats
   const trades = data.trades || [];
-  document.getElementById('total-trades').textContent = data.total_trades || 0;
 
   let totalPnl = 0;
   let wins = 0;
@@ -353,11 +352,14 @@ function renderDashboard(data) {
     }
   });
 
+  document.getElementById('total-trades').textContent = wins + losses;
+
   const pnlEl = document.getElementById('total-pnl');
   pnlEl.innerHTML = fmtMoney(totalPnl);
 
   const wrEl = document.getElementById('win-rate');
-  const wr = trades.length > 0 ? Math.round((wins / trades.length) * 100) : 0;
+  const realTrades = wins + losses;
+  const wr = realTrades > 0 ? Math.round((wins / realTrades) * 100) : 0;
   wrEl.textContent = wr + '%';
   document.getElementById('win-detail').textContent = wins + 'W / ' + losses + 'L';
 
