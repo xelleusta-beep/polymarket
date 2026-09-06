@@ -16,6 +16,9 @@ from flask import Flask, jsonify, Response
 
 app = Flask(__name__)
 
+STATE_DIR = os.path.join(os.path.dirname(__file__), "runtime")
+STATE_FILE = os.path.join(STATE_DIR, "live_state.json")
+
 # --- Bot State ---
 bot_state = {
     "status": "starting",
@@ -73,7 +76,7 @@ def run_bot():
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
-                env={**os.environ, "BTC5M_REPO": repo},
+                env={**os.environ, "BTC5M_REPO": repo, "BTC5M_STATE_FILE": STATE_FILE},
             )
             bot_state["pid"] = bot_process.pid
 
@@ -106,6 +109,19 @@ def run_bot():
             bot_state["status"] = "error"
 
         time.sleep(5)
+
+
+def read_state():
+    """Read live state from file written by trading script."""
+    try:
+        if os.path.exists(STATE_FILE):
+            mtime = os.path.getmtime(STATE_FILE)
+            if time.time() - mtime < 30:  # fresh within 30 sec
+                with open(STATE_FILE, 'r') as f:
+                    return json.load(f)
+    except Exception:
+        pass
+    return None
 
 
 DASHBOARD_HTML = """<!DOCTYPE html>
@@ -338,18 +354,31 @@ function renderDashboard(data) {
   wrEl.textContent = wr + '%';
   document.getElementById('win-detail').textContent = wins + 'W / ' + losses + 'L';
 
-  // Active position
+  // Active position - use live data from state file
   const posEl = document.getElementById('active-position');
-  const last = data.last_trade;
-  if (last && last.opened && !last.closed) {
-    const o = last.opened;
+  const live = data._live || {};
+  const livePos = live.position || {};
+  const isLive = live.status === 'position_open' || live.status === 'position_live';
+
+  if (isLive && livePos.market_slug) {
+    const o = livePos;
+    const livePx = live.live_price != null ? fmtPrice(live.live_price) : '-';
+    const sl = live.stop_loss != null ? fmtPrice(live.stop_loss) : '-';
+    const secLeft = live.seconds_left != null ? Math.round(live.seconds_left) : '-';
+    const pnlLive = (live.live_price && o.entry_price) ? (parseFloat(live.live_price) - parseFloat(o.entry_price)) * parseFloat(o.shares) : null;
+    const pnlHtml = pnlLive != null ? fmtMoney(pnlLive) : '-';
     posEl.innerHTML = '<div class="position-grid">' +
       '<div class="pos-item"><div class="pos-label">Piyasa</div><div class="pos-value">' + (o.market_slug||'-') + '</div></div>' +
       '<div class="pos-item"><div class="pos-label">Taraf</div><div class="pos-value ' + (o.side === 'UP' ? 'side-up' : 'side-down') + '">' + (o.side||'-') + '</div></div>' +
       '<div class="pos-item"><div class="pos-label">Giris Fiyati</div><div class="pos-value">' + fmtPrice(o.entry_price) + '</div></div>' +
-      '<div class="pos-item"><div class="pos-label">Pay Adedi</div><div class="pos-value">' + parseFloat(o.shares||0).toFixed(4) + '</div></div>' +
-      '<div class="pos-item"><div class="pos-label">Maliyet</div><div class="pos-value">$' + parseFloat(o.cost_usdc||0).toFixed(2) + '</div></div>' +
-      '</div>';
+      '<div class="pos-item"><div class="pos-label">Canli Fiyat</div><div class="pos-value blue">' + livePx + '</div></div>' +
+      '<div class="pos-item"><div class="pos-label">Anlik PnL</div><div class="pos-value">' + pnlHtml + '</div></div>' +
+      '<div class="pos-item"><div class="pos-label">Stop-Loss</div><div class="pos-value red">' + sl + '</div></div>' +
+      '<div class="pos-item"><div class="pos-label">Kalan Sure</div><div class="pos-value yellow">' + secLeft + 's</div></div>' +
+      '<div class="pos-item"><div class="pos-label">Pay / Maliyet</div><div class="pos-value">' + parseFloat(o.shares||0).toFixed(2) + ' / $' + parseFloat(o.cost_usdc||0).toFixed(2) + '</div></div>' +
+      '</div>' +
+      '<div style="margin-top:12px;padding:10px;background:#0d1117;border-radius:8px;font-size:12px;color:#8b949e">' +
+      '<span class="pulse pulse-green"></span> CANLI - ' + (live.ts || '') + '</div>';
   } else {
     posEl.innerHTML = '<div class="no-position"><span class="pulse pulse-green"></span> Acik pozisyon yok - siradaki firsat bekleniyor...</div>';
   }
@@ -401,8 +430,13 @@ function renderDashboard(data) {
 
 async function refresh() {
   try {
-    const r = await fetch(API + '/status');
-    const data = await r.json();
+    const [rStatus, rLive] = await Promise.all([
+      fetch(API + '/api/status'),
+      fetch(API + '/api/live')
+    ]);
+    const data = await rStatus.json();
+    const live = await rLive.json();
+    data._live = live;
     renderDashboard(data);
   } catch (e) {
     document.getElementById('status-badge').textContent = 'OFFLINE';
@@ -446,6 +480,13 @@ def api_status():
 @app.route("/api/trades")
 def api_trades():
     return jsonify({"total": bot_state["total_trades"], "trades": bot_state["trades"]})
+
+
+@app.route("/api/live")
+def api_live():
+    """Live position state from trading script."""
+    state = read_state()
+    return jsonify(state or {"status": "idle"})
 
 
 # Legacy endpoints

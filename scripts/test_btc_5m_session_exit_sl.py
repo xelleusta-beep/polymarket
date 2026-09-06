@@ -16,6 +16,20 @@ from py_clob_client.constants import POLYGON
 from py_clob_client.clob_types import ApiCreds
 
 UTC = dt.timezone.utc
+STATE_FILE = os.environ.get('BTC5M_STATE_FILE', '')
+
+
+def write_state(state: dict):
+    """Write live state to JSON file for dashboard."""
+    if not STATE_FILE:
+        return
+    try:
+        p = Path(STATE_FILE)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        with open(p, 'w') as f:
+            json.dump(state, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
 
 
 def now_utc() -> dt.datetime:
@@ -487,6 +501,7 @@ def main():
                     'open_tx': (post.get('transactionsHashes') or [None])[0],
                 }
                 report['open_raw'] = out[-4000:]
+                write_state({'status': 'position_open', 'position': opened, 'ts': ts_utc()})
                 break
             else:
                 report['last_open_try'] = out[-2000:]
@@ -522,6 +537,14 @@ def main():
         side_px = get_side_price_from_slug(opened['market_slug'], opened['side'])
         report['last_side_price'] = side_px
         report['last_check_at'] = ts_utc()
+        write_state({
+            'status': 'position_live',
+            'position': opened,
+            'live_price': side_px,
+            'stop_loss': sl_price,
+            'seconds_left': max(0, end_ts - time.time()),
+            'ts': ts_utc(),
+        })
         if side_px is not None and side_px <= sl_price:
             close_reason = f"stop_loss_{int(args.stop_loss_pct * 100)}pct"
             break
@@ -684,6 +707,7 @@ def main():
     if closed['close_usdc']:
         pnl = round(closed['close_usdc'] - opened['cost_usdc'], 6)
     report['realized_cashflow_pnl_usdc'] = pnl
+    write_state({'status': 'position_closed', 'position': opened, 'closed': closed, 'pnl': pnl, 'ts': ts_utc()})
     report['finished_at'] = ts_utc()
     report['result'] = 'done'
 
